@@ -12,6 +12,5 @@ app.get("/", (req, res) => {
 });
 
 app.use("/api/auth", authRoute);
-app.use(cors());
 
 export default app;
