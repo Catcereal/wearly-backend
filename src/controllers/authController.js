@@ -8,14 +8,31 @@ const generateToken = (userId) => {
   });
 };
 
-// 아이디 중복 확인
+const serializeUser = (user) => ({
+  id: user._id,
+  name: user.name,
+  username: user.username,
+  gender: user.gender,
+  birthDate: user.birthDate,
+  email: user.email,
+  zipcode: user.zipcode,
+  address1: user.address1,
+  address2: user.address2,
+  bio: user.bio,
+  avatarUri: user.avatarUri,
+  instagramUrl: user.instagramUrl,
+  youtubeUrl: user.youtubeUrl,
+  preferredStyles: Array.isArray(user.preferredStyles) ? user.preferredStyles : [],
+  preferredColors: Array.isArray(user.preferredColors) ? user.preferredColors : [],
+});
+
 export const checkUsername = async (req, res) => {
   try {
     const { username } = req.query;
 
     if (!username || !username.trim()) {
       return res.status(400).json({
-        message: "username을 입력해주세요.",
+        message: "Please enter a username.",
       });
     }
 
@@ -26,23 +43,63 @@ export const checkUsername = async (req, res) => {
     if (existingUser) {
       return res.status(200).json({
         available: false,
-        message: "이미 사용 중인 아이디입니다.",
+        message: "This username is already taken.",
       });
     }
 
     return res.status(200).json({
       available: true,
-      message: "사용 가능한 아이디입니다.",
+      message: "This username is available.",
     });
   } catch (error) {
     console.error("checkUsername error:", error.message);
     return res.status(500).json({
-      message: "서버 오류",
+      message: "A server error occurred.",
     });
   }
 };
 
-// 회원가입
+export const findUsername = async (req, res) => {
+  try {
+    const { name, email } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({
+        message: "Please enter your name.",
+      });
+    }
+
+    if (!email || !email.trim()) {
+      return res.status(400).json({
+        message: "Please enter your email.",
+      });
+    }
+
+    const user = await User.findOne({
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+    }).select("username name email");
+
+    if (!user) {
+      return res.status(404).json({
+        message: "No account matches that name and email.",
+      });
+    }
+
+    return res.status(200).json({
+      message: "ID found successfully.",
+      username: user.username,
+      name: user.name,
+      email: user.email,
+    });
+  } catch (error) {
+    console.error("findUsername error:", error.message);
+    return res.status(500).json({
+      message: "A server error occurred.",
+    });
+  }
+};
+
 export const registerUser = async (req, res) => {
   try {
     const {
@@ -59,25 +116,25 @@ export const registerUser = async (req, res) => {
 
     if (!name || !name.trim()) {
       return res.status(400).json({
-        message: "이름을 입력해주세요.",
+        message: "Please enter your name.",
       });
     }
 
     if (!username || !username.trim()) {
       return res.status(400).json({
-        message: "아이디를 입력해주세요.",
+        message: "Please enter a username.",
       });
     }
 
     if (!email || !email.trim()) {
       return res.status(400).json({
-        message: "이메일을 입력해주세요.",
+        message: "Please enter your email.",
       });
     }
 
     if (!password) {
       return res.status(400).json({
-        message: "비밀번호를 입력해주세요.",
+        message: "Please enter a password.",
       });
     }
 
@@ -86,7 +143,7 @@ export const registerUser = async (req, res) => {
     if (!passwordValid) {
       return res.status(400).json({
         message:
-          "비밀번호는 대문자 1개 이상, 특수기호 1개 이상 포함하고 7자리 이상이어야 합니다.",
+          "Password must include one uppercase letter, one special character, and be at least 7 characters long.",
       });
     }
 
@@ -96,7 +153,7 @@ export const registerUser = async (req, res) => {
 
     if (existingEmail) {
       return res.status(409).json({
-        message: "이미 가입된 이메일입니다.",
+        message: "This email is already registered.",
       });
     }
 
@@ -106,7 +163,7 @@ export const registerUser = async (req, res) => {
 
     if (existingUsername) {
       return res.status(409).json({
-        message: "이미 사용 중인 아이디입니다.",
+        message: "This username is already taken.",
       });
     }
 
@@ -127,46 +184,35 @@ export const registerUser = async (req, res) => {
     const token = generateToken(user._id);
 
     return res.status(201).json({
-      message: "회원가입 성공",
+      message: "Sign up completed successfully.",
       token,
-      user: {
-        id: user._id,
-        name: user.name,
-        username: user.username,
-        gender: user.gender,
-        birthDate: user.birthDate,
-        email: user.email,
-        zipcode: user.zipcode,
-        address1: user.address1,
-        address2: user.address2,
-      },
+      user: serializeUser(user),
     });
   } catch (error) {
     console.error("registerUser error:", error.message);
     return res.status(500).json({
-      message: "서버 오류",
+      message: "A server error occurred.",
     });
   }
 };
 
-// 로그인
 export const loginUser = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { username, password } = req.body;
 
-    if (!email || !password) {
+    if (!username || !password) {
       return res.status(400).json({
-        message: "email과 password를 입력해주세요.",
+        message: "Please enter ID and password.",
       });
     }
 
     const user = await User.findOne({
-      email: email.trim().toLowerCase(),
+      username: username.trim().toLowerCase(),
     });
 
     if (!user) {
       return res.status(401).json({
-        message: "이메일 또는 비밀번호가 올바르지 않습니다.",
+        message: "Invalid ID or password.",
       });
     }
 
@@ -174,46 +220,110 @@ export const loginUser = async (req, res) => {
 
     if (!isMatch) {
       return res.status(401).json({
-        message: "이메일 또는 비밀번호가 올바르지 않습니다.",
+        message: "Invalid ID or password.",
       });
     }
 
     const token = generateToken(user._id);
 
     return res.status(200).json({
-      message: "로그인 성공",
+      message: "Login successful.",
       token,
-      user: {
-        id: user._id,
-        name: user.name,
-        username: user.username,
-        gender: user.gender,
-        birthDate: user.birthDate,
-        email: user.email,
-        zipcode: user.zipcode,
-        address1: user.address1,
-        address2: user.address2,
-      },
+      user: serializeUser(user),
     });
   } catch (error) {
     console.error("loginUser error:", error.message);
     return res.status(500).json({
-      message: "서버 오류",
+      message: "A server error occurred.",
     });
   }
 };
 
-// 내 정보 조회
+export const updateMe = async (req, res) => {
+  try {
+    const {
+      name,
+      email,
+      bio,
+      avatarUri,
+      instagramUrl,
+      youtubeUrl,
+      preferredStyles,
+      preferredColors,
+    } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({
+        message: "Please enter your name.",
+      });
+    }
+
+    if (!email || !email.trim()) {
+      return res.status(400).json({
+        message: "Please enter your email.",
+      });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const existingEmailOwner = await User.findOne({
+      email: normalizedEmail,
+      _id: { $ne: req.user._id },
+    });
+
+    if (existingEmailOwner) {
+      return res.status(409).json({
+        message: "This email is already registered.",
+      });
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user._id,
+      {
+        name: name.trim(),
+        email: normalizedEmail,
+        bio: bio?.trim() || null,
+        avatarUri: avatarUri?.trim() || null,
+        instagramUrl: instagramUrl?.trim() || null,
+        youtubeUrl: youtubeUrl?.trim() || null,
+        preferredStyles: Array.isArray(preferredStyles)
+          ? preferredStyles
+              .map((style) => String(style).trim())
+              .filter(Boolean)
+          : req.user.preferredStyles || [],
+        preferredColors: Array.isArray(preferredColors)
+          ? preferredColors
+              .map((color) => String(color).trim())
+              .filter(Boolean)
+          : req.user.preferredColors || [],
+      },
+      {
+        returnDocument: "after",
+        runValidators: true,
+      }
+    ).select("-password");
+
+    return res.status(200).json({
+      message: "Profile updated successfully.",
+      user: serializeUser(updatedUser),
+    });
+  } catch (error) {
+    console.error("updateMe error:", error.message);
+    return res.status(500).json({
+      message: "A server error occurred.",
+    });
+  }
+};
+
 export const getMe = async (req, res) => {
   try {
     return res.status(200).json({
-      message: "내 정보 조회 성공",
-      user: req.user,
+      message: "Profile loaded successfully.",
+      user: serializeUser(req.user),
     });
   } catch (error) {
     console.error("getMe error:", error.message);
     return res.status(500).json({
-      message: "서버 오류",
+      message: "A server error occurred.",
     });
   }
 };
